@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "settings": {
+    "path": ".claudinite/settings.yaml",
+    "format": "yaml"
+  },
+  "engine": {
+    "package": "@claudinite/cli",
+    "version": "1.61020.3",
+    "channel": "stable"
+  },
+  "packs": {
+    "channel": "stable",
+    "declared": [
+      {
+        "id": "basics"
+      },
+      {
+        "id": "claudinite"
+      },
+      {
+        "id": "git-github"
+      }
+    ]
+  },
+  "dormant": false,
+  "held": {
+    "basics": "1.61009.1",
+    "git-github": "1.61013.1"
+  }
+}
