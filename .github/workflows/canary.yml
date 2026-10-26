@@ -1,0 +1,151 @@
+# The neglected side project canary: adopted on every default and then left
+# alone, with its own pr.yml that runs only when src/ changes and its own
+# unmarked check step, no branch rules and auto-merge off. The engine
+# release's promotion to stable dispatches it with the version it promoted.
+# It runs the engine/update task's update (cn update run) and passes when
+# the update PR opens with the warning that the branch requires no status
+# check, auto-merge off, and the comment that no pull_request workflow ran on
+# it. It then closes the PR unmerged, so the repo stays as neglected as it
+# was. When it fails, the report job opens a release-blocker issue naming
+# the version in this repo, or comments on the one already open.
+name: canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The engine version just promoted to stable, MAJOR.YMMDD.BUILD
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: canary
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: the version is MAJOR.YMMDD.BUILD
+        run: |
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be MAJOR.YMMDD.BUILD, not \"$VERSION\""
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: wait until npm's latest tag names the version
+        run: |
+          for _ in $(seq 1 90); do
+            if [ "$(npm view @claudinite/cli dist-tags.latest 2>/dev/null)" = "$VERSION" ]; then
+              echo "npm's latest tag names $VERSION"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::npm's latest tag did not name $VERSION within 30 minutes"
+          exit 1
+      - name: download the pinned engine
+        run: |
+          { npx --yes @claudinite/setup@1.0.1 >&2 && .claudinite/bin/cn version; }
+      # An engine older than the installer-run update has none to run, so
+      # the promoted engine's own engine/update task runs it.
+      - name: which engine runs the update
+        id: runner
+        run: |
+          usage=$(.claudinite/bin/cn 2>&1 || true)
+          if grep -q '^  update run ' <<< "$usage"; then
+            echo "cn=.claudinite/bin/cn" >> "$GITHUB_OUTPUT"
+          else
+            echo "cn=npx --yes @claudinite/cli@$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+      - name: the update opens a PR that nothing checks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CN: ${{ steps.runner.outputs.cn }}
+        run: |
+          verdict=$($CN update run --repo . | tee "$RUNNER_TEMP/update.log" | grep '^update: ' | tail -n 1)
+          echo "cn update run: $verdict"
+          case $verdict in
+            "update: opened #"*"engine $VERSION"* | "update: refreshed #"*"engine $VERSION"* | "update: #"*"engine $VERSION"*" is open and current") ;;
+            *)
+              echo "::error::the update to $VERSION stopped at: $verdict"
+              exit 1 ;;
+          esac
+          pr=${verdict#update: }
+          pr=${pr#opened }
+          pr=${pr#refreshed }
+          pr=${pr#\#}
+          pr=${pr%% *}
+          echo "pr=$pr" >> "$GITHUB_ENV"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" > "$RUNNER_TEMP/pr.json"
+          failed=0
+          if ! jq -r .body "$RUNNER_TEMP/pr.json" | grep -q 'requires no status check'; then
+            echo "::error::#$pr's body lacks the warning that the default branch requires no status check"
+            failed=1
+          fi
+          if [ "$(jq -r '.auto_merge != null' "$RUNNER_TEMP/pr.json")" = true ]; then
+            echo "::error::#$pr has auto-merge on, on a branch that requires no check"
+            failed=1
+          fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/issues/$pr/comments" --jq '.[].body' | grep -q 'No pull_request workflow ran on this head'; then
+            echo "::error::#$pr carries no comment saying no pull_request workflow ran on it"
+            failed=1
+          fi
+          # pr.yml runs its own check step, which the update leaves alone.
+          if jq -r .body "$RUNNER_TEMP/pr.json" | grep -q '\.github/workflows/pr\.yml'; then
+            echo "::error::#$pr would rewrite pr.yml, whose own check step the update must leave alone"
+            failed=1
+          fi
+          if gh pr diff "$pr" --name-only | grep -q '^src/'; then
+            echo "::error::#$pr touches src/"
+            failed=1
+          fi
+          exit "$failed"
+      - name: close the update PR unmerged
+        if: ${{ always() && env.pr != '' }}
+        run: |
+          gh pr close "$pr" --delete-branch --comment "Closed by the canary: this repo stays on the version it adopted."
+
+  report:
+    needs: canary
+    if: failure()
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: open or update the release-blocker issue
+        run: |
+          title="Release $VERSION fails the side project canary"
+          body="The side project canary failed for engine $VERSION after its promotion to stable: $RUN"
+          gh label create release-blocker --repo "$GITHUB_REPOSITORY" --force \
+            --color B60205 --description "Holds a release back from promotion to stable"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label release-blocker --state open --json number,title \
+            | jq -r --arg t "$title" 'map(select(.title == $t)) | first | .number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label release-blocker --body "$body"
+          fi

@@ -1,0 +1,9 @@
+engine:
+  version: "1.61020.3"
+  manifest: "sha512-ouSs/wF1oUfW04F15ayIn/3pCm+ztPecvLKwkNzIxkPa8sp7mywloGgInIKv8FRN8t9ZKcc+KGLXg11rAp88uQ=="
+packs:
+  channel: "stable"
+  declared:
+    - basics
+    - claudinite
+    - git-github
