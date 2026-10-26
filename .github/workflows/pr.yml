@@ -1,0 +1,23 @@
+name: pr
+
+on:
+  pull_request:
+    paths: [src/**]
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: npm test
+      - name: claudinite
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx --yes @claudinite/setup@1.0.1 && .claudinite/bin/cn check work-and-world

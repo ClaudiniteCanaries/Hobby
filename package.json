@@ -1,0 +1,11 @@
+{
+  "name": "hobby",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Rolls dice for a weekly board game night.",
+  "type": "module",
+  "bin": { "roll": "src/roll.js" },
+  "scripts": {
+    "test": "node src/roll.js 3d6 > /dev/null"
+  }
+}
