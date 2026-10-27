@@ -5,8 +5,9 @@
 # It runs the engine/update task's update (cn update run) and passes when
 # the update PR opens with the warning that the branch requires no status
 # check, auto-merge off, and the comment that no pull_request workflow ran on
-# it. It then closes the PR unmerged, so the repo stays as neglected as it
-# was. When it fails, the report job opens a release-blocker issue naming
+# it, and that the defaults keep the session history off (S-13). It then
+# closes the PR unmerged, so the repo stays as neglected as it was. When it
+# fails, the report job opens a release-blocker issue naming
 # the version in this repo, or comments on the one already open.
 name: canary
 
@@ -123,6 +124,48 @@ jobs:
             failed=1
           fi
           exit "$failed"
+      # S-13. The defaults on a stable release: the update writes no growth
+      # setting, the promoted engine reports the secret nobody added, and a
+      # captured session is stored nowhere.
+      - name: S-13 the defaults leave the history off until a person adds the secret
+        if: ${{ !cancelled() && env.pr != '' }}
+        run: |
+          git fetch --quiet origin "pull/$pr/head"
+          git diff origin/main FETCH_HEAD -- .claudinite/settings.yaml > "$RUNNER_TEMP/settings.diff"
+          if grep -E '^\+.*(growth|sessionHistory|historyKeySecret|retentionDays|retention_days)' "$RUNNER_TEMP/settings.diff"; then
+            echo "::error::the update wrote a growth setting into settings.yaml of a repo that set none"
+            exit 1
+          fi
+          git switch --quiet --detach FETCH_HEAD
+          npx --yes @claudinite/setup@1.0.1 > /dev/null
+          pinned=$(.claudinite/bin/cn version | sed -n 1p)
+          if [ "$pinned" != "$VERSION" ]; then
+            echo "::error::the update's head pins $pinned, not $VERSION"
+            exit 1
+          fi
+          # A stable version from before the encrypted history has nothing to report.
+          if ! .claudinite/bin/cn check list | grep -q 'history-key-missing'; then
+            echo "::notice::$VERSION predates the session history key check; S-13 starts with the first stable version that has it"
+            exit 0
+          fi
+          .claudinite/bin/cn check world > "$RUNNER_TEMP/world.txt" || true
+          cat "$RUNNER_TEMP/world.txt"
+          grep -q 'history-key-missing' "$RUNNER_TEMP/world.txt" || {
+            echo "::error::cn check world did not report the missing session history key"
+            exit 1
+          }
+          .claudinite/bin/cn growth capture --issue 0 --session "canary-hobby-$VERSION" \
+            --transcript canary-fixtures/session.jsonl | tee "$RUNNER_TEMP/capture.txt"
+          grep -q 'no public key' "$RUNNER_TEMP/capture.txt" || {
+            echo "::error::the capture did not say it stored nothing for want of a public key"
+            exit 1
+          }
+          for b in encrypted-agent-sessions agent-sessions conversation-logs; do
+            if git ls-remote --exit-code --heads "https://github.com/$GITHUB_REPOSITORY" "$b" > /dev/null; then
+              echo "::error::a $b branch exists"
+              exit 1
+            fi
+          done
       - name: close the update PR unmerged
         if: ${{ always() && env.pr != '' }}
         run: |
