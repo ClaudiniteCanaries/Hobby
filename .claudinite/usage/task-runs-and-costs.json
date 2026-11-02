@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "generated": "2026-11-02T02:45:17.932Z",
+  "foldedThrough": "2026-11-01",
+  "runsFoldedThrough": "2026-11-02T02:44:12Z",
+  "queueFoldedThrough": null,
+  "minuteRate": null,
+  "fields": {
+    "hour": ["runs","jobs","minutesBilled","spend","apiCalls","list","ask","repair","drain","pick","claim","code-work","hand-off","converge"],
+    "day": ["runs","jobs","minutesBilled","spend","apiCalls","list","ask","repair","drain","pick","claim","code-work","hand-off","converge"],
+    "week": ["days","runs","jobs","minutesBilled","spend","apiCalls","list","ask","repair","drain","pick","claim","code-work","hand-off","converge"],
+    "workflows": ["runs","jobs","minutesBilled","spend"],
+    "runCosts": ["apiCalls","list","ask","repair","drain","pick","claim","code-work","hand-off","converge"],
+    "queue": ["done","delivered","obsolete","none"],
+    "parks": ["failure","action","decision","approval"],
+    "latency": ["tickToItemMinutes","itemToPickMinutes","pickToHandOffMinutes","handOffToConvergeMinutes"]
+  },
+  "hours": {
+    "2026-10-30T17": {"totals":[1,3,1,null,6,1588,530,0,420,null,null,null,null,null],"workflows":{"scheduler":[1,3,1,null]},"runCosts":{"41096470061":[6,1588,530,0,420,null,null,null,null,null]}},
+    "2026-10-31T02": {"totals":[2,5,5,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"executor":[1,2,3,null],"scheduler":[1,3,2,null]}},
+    "2026-10-31T16": {"totals":[1,3,1,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"scheduler":[1,3,1,null]}},
+    "2026-11-01T02": {"totals":[2,5,5,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"executor":[1,2,3,null],"scheduler":[1,3,2,null]}},
+    "2026-11-01T17": {"totals":[1,3,1,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"scheduler":[1,3,1,null]}},
+    "2026-11-02T02": {"totals":[1,3,2,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"scheduler":[1,3,2,null]}}
+  },
+  "days": {
+    "2026-10-30": {"totals":[3,8,6,null,43,2933,1535,0,9734,null,null,null,null,null],"workflows":{"executor":[1,2,3,null],"scheduler":[2,6,3,null]},"runCosts":{"40994563034":[37,1345,1005,0,9314,null,null,null,null,null],"41096470061":[6,1588,530,0,420,null,null,null,null,null]}},
+    "2026-10-31": {"totals":[3,8,6,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"executor":[1,2,3,null],"scheduler":[2,6,3,null]}},
+    "2026-11-01": {"totals":[3,8,6,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"executor":[1,2,3,null],"scheduler":[2,6,3,null]}},
+    "2026-11-02": {"totals":[1,3,2,null,null,null,null,null,null,null,null,null,null,null],"workflows":{"scheduler":[1,3,2,null]}}
+  },
+  "weeks": {
+    "2026-W44": {"totals":[3,9,24,18,null,43,2933,1535,0,9734,null,null,null,null,null],"workflows":{"executor":[3,6,9,null],"scheduler":[6,18,9,null]}}
+  }
+}
