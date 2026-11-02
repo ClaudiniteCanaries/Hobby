@@ -1,9 +1,14 @@
 engine:
-  version: "1.61020.3"
-  manifest: "sha512-ouSs/wF1oUfW04F15ayIn/3pCm+ztPecvLKwkNzIxkPa8sp7mywloGgInIKv8FRN8t9ZKcc+KGLXg11rAp88uQ=="
+  version: "1.61027.8"
+  manifest: "sha512-0K2g+VQ0Cuj4XN1ThBaFuaWk/kNxy9YQY+KXjxFUlQWaLG+N7/qcrYIyxWXI/DxbGyglvhame1kXTZTjMSOTcw=="
 packs:
   channel: "stable"
   declared:
     - basics
     - claudinite
     - git-github
+tasks:
+  merge:
+    "engine/update": "merge-safe-changes"
+  frequency:
+    "engine/update": "weekly"
