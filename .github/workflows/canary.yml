@@ -1,8 +1,10 @@
 # The neglected side project canary: adopted on every default and then left
 # alone, with its own pr.yml that runs only when src/ changes and its own
-# unmarked check step, no branch rules and auto-merge off. The engine
-# release's promotion to stable dispatches it with the version it promoted.
-# It runs the engine/update task's update (cn update run) and passes when
+# unmarked check step, no branch rules and auto-merge off. Each engine
+# release dispatches it with the version it releases, before that version is
+# promoted, so its blocker holds the promotion like every canary's. Its
+# stable channel does not serve that version yet, so it runs the engine/update
+# task's update to exactly that version (cn update run --to) and passes when
 # the update PR opens with the warning that the branch requires no status
 # check, auto-merge off, and the comment that no pull_request workflow ran on
 # it, and that the defaults keep the session history off (S-13). It then
@@ -15,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: The engine version just promoted to stable, MAJOR.YMMDD.BUILD
+        description: The engine version being released, MAJOR.YMMDD.BUILD
         required: true
         type: string
 
@@ -53,40 +55,33 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
-      - name: wait until npm's latest tag names the version
+      - name: wait until npm serves the version
         run: |
           for _ in $(seq 1 90); do
-            if [ "$(npm view @claudinite/cli dist-tags.latest 2>/dev/null)" = "$VERSION" ]; then
-              echo "npm's latest tag names $VERSION"
+            if [ "$(npm view "@claudinite/cli@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+              echo "npm serves $VERSION"
               exit 0
             fi
             sleep 20
           done
-          echo "::error::npm's latest tag did not name $VERSION within 30 minutes"
+          echo "::error::npm did not serve $VERSION within 30 minutes"
           exit 1
       - name: download the pinned engine
         run: |
           { npx --yes @claudinite/setup@1.0.1 >&2 && .claudinite/bin/cn version; }
-      # An engine older than the installer-run update has none to run, so
-      # the promoted engine's own engine/update task runs it.
+      # The released engine runs the update, since the one pinned here
+      # predates update run's --to.
       - name: which engine runs the update
         id: runner
         run: |
-          usage=$(.claudinite/bin/cn 2>&1 || true)
-          if grep -q '^  update run ' <<< "$usage"; then
-            echo "cn=.claudinite/bin/cn" >> "$GITHUB_OUTPUT"
-          else
-            # The package's own bin runs the member's pinned engine, so run
-            # the engine the package names instead.
-            (cd "$RUNNER_TEMP" && npm pack -q "@claudinite/cli@$VERSION" >/dev/null && tar xzf "claudinite-cli-$VERSION.tgz")
-            echo "cn=$(sh "$RUNNER_TEMP/package/launch" --from-package "$RUNNER_TEMP/package")" >> "$GITHUB_OUTPUT"
-          fi
+          (cd "$RUNNER_TEMP" && npm pack -q "@claudinite/cli@$VERSION" >/dev/null && tar xzf "claudinite-cli-$VERSION.tgz")
+          echo "cn=$(sh "$RUNNER_TEMP/package/launch" --from-package "$RUNNER_TEMP/package")" >> "$GITHUB_OUTPUT"
       - name: the update opens a PR that nothing checks
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CN: ${{ steps.runner.outputs.cn }}
         run: |
-          verdict=$($CN update run --repo . | tee "$RUNNER_TEMP/update.log" | grep '^update: ' | tail -n 1)
+          verdict=$($CN update run --repo . --to "$VERSION" | tee "$RUNNER_TEMP/update.log" | grep '^update: ' | tail -n 1)
           echo "cn update run: $verdict"
           case $verdict in
             "update: opened #"*"engine $VERSION"* | "update: refreshed #"*"engine $VERSION"* | "update: #"*"engine $VERSION"*" is open and current") ;;
@@ -124,8 +119,8 @@ jobs:
             failed=1
           fi
           exit "$failed"
-      # S-13. The defaults on a stable release: the update writes no growth
-      # setting, the promoted engine reports the secret nobody added, and a
+      # S-13. The defaults on the released engine: the update writes no growth
+      # setting, the released engine reports the secret nobody added, and a
       # captured session is stored nowhere.
       - name: S-13 the defaults leave the history off until a person adds the secret
         if: ${{ !cancelled() && env.pr != '' }}
@@ -143,9 +138,9 @@ jobs:
             echo "::error::the update's head pins $pinned, not $VERSION"
             exit 1
           fi
-          # A stable version from before the encrypted history has nothing to report.
+          # A version from before the encrypted history has nothing to report.
           if ! .claudinite/bin/cn check list | grep -q 'history-key-missing'; then
-            echo "::notice::$VERSION predates the session history key check; S-13 starts with the first stable version that has it"
+            echo "::notice::$VERSION predates the session history key check; S-13 starts with the first version that has it"
             exit 0
           fi
           .claudinite/bin/cn check world > "$RUNNER_TEMP/world.txt" || true
@@ -185,7 +180,7 @@ jobs:
       - name: open or update the release-blocker issue
         run: |
           title="Release $VERSION fails the side project canary"
-          body="The side project canary failed for engine $VERSION after its promotion to stable: $RUN"
+          body="The side project canary failed for engine $VERSION: $RUN"
           gh label create release-blocker --repo "$GITHUB_REPOSITORY" --force \
             --color B60205 --description "Holds a release back from promotion to stable"
           open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label release-blocker --state open --json number,title \
