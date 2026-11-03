@@ -29,7 +29,6 @@ jobs:
   scheduler-run:
     runs-on: ubuntu-24.04
     permissions:
-      actions: read
       contents: read
       issues: write
       pull-requests: read
