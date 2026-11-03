@@ -8,6 +8,9 @@ packs:
     - claudinite
     - git-github
 tasks:
+  routines:
+    default:
+      url: "https://api.anthropic.com/v1/claude_code/routines/trig_01UZHoMPp5vVnmU5o5XVGvQ1"
   merge:
     "engine/update": "merge-safe-changes"
   frequency:
